@@ -68,16 +68,23 @@ function scheduleReminder(user, paso, state) {
 
 const encuestaFlow = addKeyword(afirmaciones)
   .addAction(async (ctx, { state, flowDynamic }) => {
+    console.log(ctx.from);
+    
     clearReminder(ctx.from, PRE_ENCUESTA)
     const { data } = await axios.get('http://localhost:7003/datos-encuesta')
     const { saludos, contactos, preguntas } = data
-    const usuario = contactos.find(u => u.num === ctx.from)
+    console.log('contactos:', contactos);
 
-    if (!usuario) {
-      await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
-      return
-    }
+    const usuario = contactos.find(u => u.num === ctx.from);
+    
 
+
+  if (!usuario) {
+  await flowDynamic('❌ No se encontró una encuesta asignada para ti.');
+  return;
+}
+
+    
     const yaInicializado = await state.get('preguntas')
     if (yaInicializado) return
 
@@ -86,19 +93,19 @@ const encuestaFlow = addKeyword(afirmaciones)
       respuestas: [],
       paso: 0,
       nombre: usuario.nombre,
-      despedida: saludos[0]?.saludo3 || '✅ Gracias por participar en la encuesta.'
+      despedida: saludos[0]?.saludo3 || '✅ Gracias por participar en la encuesta.',
     })
 
     await flowDynamic(`✅ ¡Hola ${usuario.nombre}! Empecemos con tu encuesta.`)
 
     const p0 = preguntas[0]
-    let msg0 = `1⃣ ${p0.pregunta}`
+    let msg0 = `⿡ ${p0.pregunta}`
 
     if (p0.textoIni && p0.tipoRespuesta === 'RANGO') {
       msg0 += `\n*Califica del rango ${p0.rangoIni} al ${p0.rangoFin}*`
-      msg0 += '\n' + p0.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')
+      msg0 += `\n${p0.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')}`
     } else if (p0.textoIni) {
-      msg0 += '\n' + p0.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')
+      msg0 += `\n${p0.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')}`
     }
 
     await flowDynamic(msg0)
@@ -131,39 +138,50 @@ const encuestaFlow = addKeyword(afirmaciones)
     respuestas.push(respuesta)
     paso++
 
-    if (paso >= preguntas.length) {
-      await state.clear()
-      const resumen = respuestas.map((r, i) => `❓ ${preguntas[i].pregunta}\n📝 ${r}`).join('\n\n')
+   if (paso >= preguntas.length) {
+  await state.clear()
+  const resumen = respuestas.map((r, i) => ❓ ${preguntas[i].pregunta}\n📝 ${r}).join('\n\n')
 
-      const payload = respuestas.map((r, i) => ({
-        idContacto: ctx.from,
-        idEncuesta: preguntas[i].idEncuesta,
-        idEmpresa: preguntas[i].idEmpresa,
-        pregunta: preguntas[i].pregunta,
-        respuesta: r,
-        tipo: preguntas[i].tipoRespuesta
-      }))
+  const payload = respuestas.map((r, i) => ({
+    idContacto: preguntas.usuario.id,
+    idEncuesta: preguntas[i].idEncuesta,
+    idEmpresa: preguntas[i].idEmpresa,
+    pregunta: preguntas[i].pregunta,
+    respuesta: r,
+    tipo: preguntas[i].tipoRespuesta,
+    idPregunta: preguntas[i].id
+  }))
 
-      try {
-        await axios.post('http://localhost:7003/guardar-respuestas', payload)
-        await flowDynamic('📩 Tus respuestas fueron enviadas exitosamente.')
-      } catch (e) {
-        console.error('Error al guardar respuestas:', e.message)
-        await flowDynamic('⚠ Hubo un problema al guardar tus respuestas.')
-      }
+  console.log('📦 Payload de respuestas:', payload)
 
-      await flowDynamic(despedida)
-      return await flowDynamic(`✅ Tus respuestas:\n\n${resumen}`)
-    }
+  try {
+    await axios.post('http://localhost:7003/guardar-respuestas', payload)
+    await flowDynamic('📩 Tus respuestas fueron enviadas exitosamente.')
+
+    // 🔒 Cerrar encuesta en backend (ejemplo)
+    await axios.post('http://localhost:7003/finalizar-encuesta', {
+      idContacto: preguntas.usuario.id,
+      idEncuesta: preguntas[0].idEncuesta
+    })
+    console.log('✅ Encuesta finalizada en backend.')
+  } catch (e) {
+    console.error('Error al guardar respuestas o finalizar encuesta:', e.message)
+    await flowDynamic('⚠ Hubo un problema al guardar tus respuestas o cerrar la encuesta.')
+  }
+
+  await flowDynamic(despedida)
+  await flowDynamic(✅ Tus respuestas:\n\n${resumen})
+  return await flowDynamic('🎉 ¡Encuesta finalizada! Muchas gracias por tu tiempo y tuopinión.')
+}
 
     const siguiente = preguntas[paso]
     let mensaje = `${paso + 1}⃣ ${siguiente.pregunta}`
 
     if (siguiente.textoIni && siguiente.tipoRespuesta === 'RANGO') {
       mensaje += `\n*Califica del rango ${siguiente.rangoIni} al ${siguiente.rangoFin}*`
-      mensaje += '\n' + siguiente.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')
+      mensaje += `\n${siguiente.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')}`
     } else if (siguiente.textoIni) {
-      mensaje += '\n' + siguiente.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')
+      mensaje += `\n${siguiente.textoIni.split('=').map(s => s.replace('-', ' - ').trim()).join('\n')}`
     }
 
     await state.update({ preguntas, respuestas, paso, despedida })
@@ -172,36 +190,39 @@ const encuestaFlow = addKeyword(afirmaciones)
     return gotoFlow(encuestaFlow)
   })
 
-const negacionFlow = addKeyword(negaciones).addAction(async (ctx, { flowDynamic, state }) => {
-  const { data } = await axios.get('http://localhost:7003/datos-encuesta')
-  const { contactos } = data
-  const usuario = contactos.find(u => u.num === ctx.from)
+const negacionFlow = addKeyword(negaciones)
+  .addAction(async (ctx, { flowDynamic, state }) => {
+    const { data } = await axios.get('http://localhost:7003/datos-encuesta')
+    const { contactos } = data
+    const usuario = contactos.find(u => u.num === ctx.from)
 
-  if (!usuario) {
-    await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
+    if (!usuario) {
+      await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
+      return
+    }
+    await state.clear()
+    await flowDynamic('✅ Gracias por tu tiempo. Si deseas participar en otro momento, estaré disponible.')
     return
-  }
-  await state.clear()
-  await flowDynamic('✅ Gracias por tu tiempo. Si deseas participar en otro momento, estaré disponible.')
-})
+  })
 
-const defaultFlow = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state }) => {
-  if (!ctx.body || ctx.body.trim() === '') return
+const defaultFlow = addKeyword(EVENTS.WELCOME)
+  .addAction(async (ctx, { flowDynamic, state }) => {
+    if (!ctx.body || ctx.body.trim() === '') return
 
-  const { data } = await axios.get('http://localhost:7003/datos-encuesta')
-  const { contactos } = data
-  const usuario = contactos.find(u => u.num === ctx.from)
- 
-  if (!usuario) {
-    await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
-    return
-  }
+    const { data } = await axios.get('http://localhost:7003/datos-encuesta')
+    const { contactos } = data
+    const usuario = contactos.find(u => u.num === ctx.from)
 
-  await state.update({ paso: PRE_ENCUESTA })
-  await flowDynamic('👋 ¡Hola! ¿Deseas participar en una breve encuesta? Responde sí o no para continuar.')
-  console.log(`🕒 Programando recordatorio para ${ctx.from}, paso ${PRE_ENCUESTA}`)
-  scheduleReminder(ctx.from, PRE_ENCUESTA, state)
-})
+    if (!usuario) {
+      await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
+      return
+    }
+
+    await state.update({ paso: PRE_ENCUESTA })
+    await flowDynamic('👋 ¡Hola! ¿Deseas participar en una breve encuesta? Responde sí o no para continuar.')
+    console.log(`🕒 Programando recordatorio para ${ctx.from}, paso ${PRE_ENCUESTA}`)
+    scheduleReminder(ctx.from, PRE_ENCUESTA, state)
+  })
 
 const main = async () => {
   const adapterFlow = createFlow([encuestaFlow, negacionFlow, defaultFlow])
@@ -213,10 +234,8 @@ const main = async () => {
     database: adapterDB
   })
 
-  provider.server.get('/v1/prueba', (req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.end('✅ Ruta activa: /v1/prueba (GET)')
-  })
+  
+
 
   httpServer(+PORT)
 }

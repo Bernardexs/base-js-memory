@@ -191,7 +191,7 @@ const defaultFlow = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
   const { data } = await axios.get('http://localhost:7003/datos-encuesta')
   const { contactos } = data
   const usuario = contactos.find(u => u.num === ctx.from)
- 
+
   if (!usuario) {
     await flowDynamic('❌ No se encontró una encuesta asignada para ti.')
     return
