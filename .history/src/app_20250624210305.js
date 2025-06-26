@@ -139,13 +139,13 @@ const encuestaFlow = addKeyword(afirmaciones)
       const resumen = respuestas.map((r, i) => `❓ ${preguntas[i].pregunta}\n📝 ${r}`).join('\n\n')
 
       const payload = respuestas.map((r, i) => ({
-        idContacto: ctx.from,
+        idContacto: preguntas.usuario.id,
         idEncuesta: preguntas[i].idEncuesta,
         idEmpresa: preguntas[i].idEmpresa,
         pregunta: preguntas[i].pregunta,
         respuesta: r,
         tipo: preguntas[i].tipoRespuesta,
-        idPregunta: preguntas[i].idPregunta   // <— ahora sí coincide con tu recordset
+        idPregunta: preguntas[i].id // <-- ✅ AGREGA ESTO
       }))
       console.log('📦 Payload de respuestas:', payload)
 
@@ -229,4 +229,4 @@ const main = async () => {
   httpServer(+PORT)
 }
 
-main() 
+main()

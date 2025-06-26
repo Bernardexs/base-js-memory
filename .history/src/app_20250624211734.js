@@ -145,7 +145,7 @@ const encuestaFlow = addKeyword(afirmaciones)
         pregunta: preguntas[i].pregunta,
         respuesta: r,
         tipo: preguntas[i].tipoRespuesta,
-        idPregunta: preguntas[i].idPregunta   // <— ahora sí coincide con tu recordset
+        idPregunta: preguntas[i].id // <-- ✅ AGREGA ESTO
       }))
       console.log('📦 Payload de respuestas:', payload)
 
